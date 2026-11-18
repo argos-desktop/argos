@@ -1,0 +1,17 @@
+[package]
+name = "argos"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
+tauri = { version = "2", features = ["custom-protocol"] }
+wasapi = "0.27"
+windows = { version = "0.62", features = ["Foundation", "Graphics_Capture", "Graphics_DirectX_Direct3D11", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_System_WinRT_Direct3D11", "Win32_UI_Shell"] }
+windows-future = "0.3"
+
+[build-dependencies]
+tauri-build = "2"
