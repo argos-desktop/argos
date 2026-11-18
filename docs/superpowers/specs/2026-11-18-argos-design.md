@@ -1,12 +1,20 @@
 # Argos desktop assistant
 
-Approved November 18, 2026, with Windows as the first development and release target. macOS and Linux follow the Windows milestone. Argos is an independent implementation with fresh source, assets, and Git history. Its first end-to-end goal is to show a timely suggestion based on the selected screen and the other side of a call. The owner prefers a user-supplied provider key. Offline inference is outside the first milestone.
+Approved November 18, 2026, with Windows as the first development and release target. macOS and Linux follow the Windows milestone. Argos is an independent implementation with fresh source, assets, and Git history. Its first end-to-end goal is to show a timely suggestion based on the selected screen and the other side of a call. User-supplied provider keys are preferred. Users can choose existing subscription access where the provider supports this use. Offline inference is outside the first milestone.
 
 ## Desktop and capture
 
 Use Tauri 2 with a small bundled frontend and Rust session management. Electron offers a common Chromium capture API and would be a reasonable alternative. Tauri is preferred because the project can grant a small set of commands per window and keep credentials, media, and provider connections behind that boundary. Either choice requires native capture testing.
 
 Start on Windows with one selected display and system playback audio using Windows Graphics Capture and WASAPI loopback. When macOS development begins, investigate ScreenCaptureKit. When Linux development begins, start with the desktop screencast portal and PipeWire on Wayland, selecting a playback monitor for audio. Treat X11 and individual Linux desktop environments as separate validation targets. Record tested OS versions and desktops before advertising support. Prefer maintained capture libraries when they preserve source selection, permission errors, and reliable shutdown.
+
+## Account options
+
+Offer an Anthropic or OpenAI API key for the corresponding assistant. Show which account or key funds the session before Start. If a subscription expires, reaches a limit, or loses authorization, pause and let the user choose whether to use a paid key. Never switch billing sources automatically.
+
+For eligible local distributions, offer Sign in with ChatGPT as a Codex option. Request explicit plan-usage permission for Argos through the provider’s browser flow. Keep the resulting registration and tokens isolated from the user's Codex CLI profile. Apply the documented distribution requirements before enabling this in a paid or remotely hosted edition. The preview accepts eligible text and image inputs and excludes audio and transcription endpoints. Plan for local transcription so a subscription-only session can operate without an API key. [OpenAI overview](https://developers.openai.com/siwc/token-sharing-open-source) · [Codex integration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server) · [Input limits](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+
+For Claude suggestions inside Argos, use the user's Anthropic API key. Anthropic restricts consumer subscription login and routing on behalf of users in third-party apps. A separate, user-operated session in the official, unmodified Claude Code client can use a subscription under Anthropic's conditions. Any future handoff must be explicit and leave login and credentials with Claude Code. [Anthropic authentication and product terms](https://code.claude.com/docs/en/legal-and-compliance)
 
 ## Session and data
 
