@@ -1,0 +1,23 @@
+# Argos desktop assistant
+
+Proposed design, November 18, 2026. Argos is an independent implementation with fresh source, assets, and Git history. Its first end-to-end goal is to show a timely suggestion based on the selected screen and the other side of a call. The owner prefers a user-supplied provider key. Offline inference is outside the proposed first milestone.
+
+## Desktop and capture
+
+Use Tauri 2 with a small bundled frontend and Rust session management. Electron offers a common Chromium capture API and would be a reasonable alternative. Tauri is preferred because the project can grant a small set of commands per window and keep credentials, media, and provider connections behind that boundary. Either choice requires native capture testing.
+
+Start with one selected display and system playback audio. On macOS investigate ScreenCaptureKit. On Windows use Windows Graphics Capture and WASAPI loopback. On Linux start with the desktop screencast portal and PipeWire on Wayland, selecting a playback monitor for audio. Treat X11 and individual Linux desktop environments as separate validation targets. Record tested OS versions and desktops before advertising support. Prefer maintained capture libraries when they preserve source selection, permission errors, and reliable shutdown.
+
+## Session and data
+
+The user chooses the inputs, sees the destination provider, and explicitly starts a session. Show recording state and a persistent Stop control. Sample screen frames at a bounded rate. Send audio and the most recent relevant frame directly to the provider over TLS. Proposed first interaction: suggest a response automatically when the provider detects the end of a spoken turn. Measure latency from the end of speech to the first visible response. Render responses as untrusted text. Proposed first provider: Gemini Live, to exercise both inputs over one connection. Select a supported model when implementing. Model choice and rate should remain changeable without rebuilding capture.
+
+The Rust backend owns the connection and credential lookup. Restrict commands by window and validate their arguments. An entered key goes directly to the backend, which never returns a saved key to the UI. Use the OS credential store when the user elects to remember it. If that store is unavailable, offer session-only use. Keep session content in memory by default. Logs may contain timings and categorized errors, but must omit secrets, request URLs with credentials, and captured content.
+
+Keep capture and upload queues bounded. Discard stale frames on congestion. Report disconnected audio or a revoked capture source visibly. On Stop, device loss, or a terminal provider failure, cancel pending work and release media handles. Allow bounded retries for transient failures while indicating the interruption. Reject late events from an ended session. Permanent authentication failures require user action.
+
+## Delivery and evidence
+
+First demonstrate source selection, real system playback capture, permission denial, Stop, and restart on each target. Next exercise one provider end to end, using synthetic fixtures for automated tests and recording time to first suggestion in real sessions. Include network loss, invalid credentials, and device removal. Verify that stopping ends capture and outbound media, and inspect diagnostics for sensitive material. Build and run automated checks on macOS, Windows, and Linux. Report hardware checks separately from successful builds.
+
+Both coding tools use the root contributor instructions and current handoff note. Git history records durable changes. Developer chat histories are unnecessary for resuming work.
