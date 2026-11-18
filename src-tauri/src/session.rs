@@ -140,6 +140,7 @@ pub type Shared = Arc<std::sync::Mutex<Session>>;
 pub type CaptureResult<T = ()> = Result<T, &'static str>;
 
 /// Keep both handles on their owning thread until capture stops or either source fails.
+#[cfg(any(windows, test))]
 pub fn run_inputs<S, A>(
     state: &Shared,
     token: &Token,

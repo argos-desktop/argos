@@ -1,6 +1,20 @@
 # Argos
 
-Argos is an independent Windows desktop assistant in development. The first milestone shows whether Windows can capture a selected screen or window and the default playback device. This version processes media in memory and displays counters and an audio level. It has no provider connection or recording output.
+Argos is a desktop assistant in development for Windows and macOS. The first milestone shows screen frame dimensions, a frame count, and a playback audio meter for a source you select. This version processes media in memory and displays counters and an audio level. It has no provider connection or recording output.
+
+## Try the Mac build
+
+Open Argos.app on Apple silicon running macOS 14 or later. Click **Start capture** and choose a window or display in Apple's sharing picker. For a simple test, share a media-player window, play a clip with sound, and watch both counters advance. Stop should reset the counters and release sharing. Start again and cancel the picker to exercise the cancellation path. Argos requests playback audio only.
+
+To build locally, install Xcode, Rust, and Node.js, then run from the repository root:
+
+```sh
+export MACOSX_DEPLOYMENT_TARGET=14.0
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+npx --yes --package=@tauri-apps/cli@2.12.6 -- tauri build --bundles app -- --locked
+```
+
+The app bundle is written to `src-tauri/target/release/bundle/macos/Argos.app`.
 
 ## Try the Windows build
 

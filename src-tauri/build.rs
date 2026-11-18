@@ -1,10 +1,13 @@
 fn main() {
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+    if matches!(
+        std::env::var("CARGO_CFG_TARGET_OS").as_deref(),
+        Ok("windows" | "macos")
+    ) {
         tauri_build::try_build(
             tauri_build::Attributes::new().app_manifest(
                 tauri_build::AppManifest::new().commands(&["start", "stop", "status"]),
             ),
         )
-        .expect("generate Windows app resources and permissions");
+        .expect("generate app resources and permissions");
     }
 }

@@ -1,11 +1,15 @@
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 mod session;
 
 #[cfg(windows)]
 #[path = "capture/windows.rs"]
 mod capture;
 
-#[cfg(windows)]
+#[cfg(target_os = "macos")]
+#[path = "capture/macos.rs"]
+mod capture;
+
+#[cfg(any(windows, target_os = "macos"))]
 mod desktop {
     use super::{
         capture,
@@ -109,5 +113,5 @@ mod desktop {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use desktop::run;
