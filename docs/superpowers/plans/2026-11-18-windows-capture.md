@@ -14,7 +14,7 @@
 
 - Windows first. Defer macOS and Linux implementations, packaging, and release claims.
 - Keep captures in memory. No media, source titles, credentials, or transcripts in diagnostics.
-- Exercise capture locally before the separate Gemini Live milestone. A provider key is unnecessary for this milestone.
+- Exercise capture locally before the separate Claude and Codex milestone. A provider key is unnecessary for this milestone.
 
 ## Review focus
 
@@ -42,4 +42,4 @@ Canceling the picker, partial startup, silent playback, device removal, and Stop
 
 ## After Windows capture
 
-Add the Gemini Live connection in Rust, Windows Credential Manager with a session-only fallback, bounded streaming, turn detection, and text suggestions. Verify the provider boundary with a fake service before a real BYOK session. Prioritize the Windows end-to-end experience before starting either additional platform.
+Add user-selectable Claude and Codex connections, Windows Credential Manager with a session-only fallback, bounded streaming, turn detection, and text suggestions. Verify each with synthetic inputs, then run one end-to-end session per assistant using only its corresponding key. Test that switching assistants does not forward the previous session or credentials. Prioritize the Windows end-to-end experience before starting either additional platform.
