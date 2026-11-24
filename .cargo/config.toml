@@ -1,0 +1,10 @@
+# transcribe-cpp-sys 0.4.2 does not link for x86_64-pc-windows-gnu as published: ggml drops the
+# "lib" prefix from its archives on Windows, and nothing links the C++ runtime. A cross-build
+# also gets no SIMD beyond SSE2, so the x86 flags name what every Windows 11 CPU has; they are
+# ignored on Apple silicon. A native MSVC build must set TRANSCRIBE_CMAKE_ARGS itself, without
+# the two prefix settings.
+[env]
+TRANSCRIBE_CMAKE_ARGS = "-DCMAKE_STATIC_LIBRARY_PREFIX_C=lib -DCMAKE_STATIC_LIBRARY_PREFIX_CXX=lib -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-args=-l:libstdc++.a -lgcc_eh -l:libpthread.a -lmsvcrt -lmingwex -lmingw32 -lgcc -lmsvcrt -lmingwex -lkernel32"]

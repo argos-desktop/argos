@@ -37,6 +37,7 @@ impl Token {
 pub struct Session {
     pub status: Status,
     active: Option<Token>,
+    failure: Option<&'static str>,
 }
 
 impl Session {
@@ -46,6 +47,7 @@ impl Session {
         }
         let token = Token::default();
         self.active = Some(token.clone());
+        self.failure = None;
         self.status = Status {
             phase: Phase::Starting,
             ..Status::default()
@@ -61,6 +63,13 @@ impl Session {
         if let Some(token) = &self.active {
             token.0.store(true, Ordering::Release);
             self.status.phase = Phase::Stopping;
+        }
+    }
+    /// Ends the session with a reason that stays visible, unlike a user's Stop.
+    pub fn fail(&mut self, token: &Token, message: &'static str) {
+        if self.current(token) && !token.cancelled() {
+            self.failure = Some(message);
+            self.stop();
         }
     }
     pub fn running(&mut self, token: &Token) -> bool {
@@ -86,9 +95,14 @@ impl Session {
     pub fn finish(&mut self, token: &Token, message: Option<&'static str>) {
         if self.current(token) {
             self.status = Status {
-                message: if token.cancelled() { None } else { message },
+                message: self
+                    .failure
+                    .take()
+                    .or(if token.cancelled() { None } else { message }),
                 ..Status::default()
             };
+            // Ends every worker of this session, including ones that outlive capture.
+            token.0.store(true, Ordering::Release);
             self.active = None;
         }
     }
@@ -116,6 +130,10 @@ mod tests {
         let old = s.start().unwrap();
         s.finish(&old, None);
         assert!(s.status.message.is_none());
+        let stopped = s.start().unwrap();
+        s.stop();
+        s.finish(&stopped, Some("Interrupted"));
+        assert!(s.status.message.is_none());
         let next = s.start().unwrap();
         assert!(s.running(&next));
         s.frame(&old, 800, 600);
@@ -125,10 +143,26 @@ mod tests {
     }
 
     #[test]
+    fn assistant_failure_stops_the_session_and_stays_visible() {
+        let mut s = Session::default();
+        let token = s.start().unwrap();
+        s.fail(&token, "Key rejected");
+        assert!(token.cancelled());
+        s.fail(&token, "Later noise");
+        s.finish(&token, None);
+        assert_eq!(s.status.message, Some("Key rejected"));
+        let stale = token;
+        let next = s.start().unwrap();
+        s.fail(&stale, "Old session");
+        assert!(!next.cancelled());
+    }
+
+    #[test]
     fn startup_failure_survives_poll_until_retry() {
         let mut s = Session::default();
         let token = s.start().unwrap();
         s.finish(&token, Some("Playback unavailable"));
+        assert!(token.cancelled());
         assert_eq!(s.status.phase, Phase::Idle);
         assert_eq!(s.status.message, Some("Playback unavailable"));
         s.start().unwrap();

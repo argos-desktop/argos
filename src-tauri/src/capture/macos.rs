@@ -1,4 +1,7 @@
-use crate::session::{CaptureResult, Shared, Token};
+use crate::{
+    media::Sink,
+    session::{CaptureResult, Shared, Token},
+};
 use screencapturekit::{
     cm::SCFrameStatus,
     content_sharing_picker::{
@@ -9,17 +12,29 @@ use screencapturekit::{
     stream::delegate_trait::StreamCallbacks,
 };
 use std::{
-    sync::mpsc::{self, Receiver, RecvTimeoutError},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, RecvTimeoutError},
+    },
     time::Duration,
 };
-use tauri::WebviewWindow;
+use tauri::{Manager, WebviewWindow};
 
 pub struct Picker {
     events: Receiver<CaptureResult<Option<SCPickerResult>>>,
     _observer: SCPickerSubscription,
 }
 
-pub fn pick(_: &WebviewWindow) -> CaptureResult<Picker> {
+// Diagnostics carry the OS error only, never source titles or media.
+fn fail<E: std::fmt::Display>(message: &'static str) -> impl FnOnce(E) -> &'static str {
+    move |e| {
+        eprintln!("argos: {message} ({e})");
+        message
+    }
+}
+
+pub fn pick(window: &WebviewWindow) -> CaptureResult<Picker> {
     let mut config = SCContentSharingPickerConfiguration::new()
         .map_err(|_| "The macOS sharing picker is unavailable.")?;
     config.set_allowed_picker_modes(&[
@@ -27,6 +42,10 @@ pub fn pick(_: &WebviewWindow) -> CaptureResult<Picker> {
         SCContentSharingPickerMode::SingleWindow,
     ]);
     config.set_allows_changing_selected_content(false);
+    // Argos's own window has no playback audio and would feed suggestions back into capture.
+    config
+        .set_excluded_bundle_ids(&[window.config().identifier.as_str()])
+        .map_err(|_| "Could not configure the macOS picker.")?;
     SystemPicker::set_default_configuration(&config)
         .map_err(|_| "Could not configure the macOS picker.")?;
     let (tx, events) = mpsc::sync_channel(1);
@@ -59,7 +78,7 @@ fn peak(samples: &[u8]) -> f32 {
         .min(1.0)
 }
 
-pub fn run(picker: Picker, state: &Shared, token: &Token) -> CaptureResult {
+pub fn run(picker: Picker, state: &Shared, token: &Token, sink: &Arc<Sink>) -> CaptureResult {
     let tick = Duration::from_millis(50);
     let selected = loop {
         if token.cancelled() {
@@ -82,9 +101,11 @@ pub fn run(picker: Picker, state: &Shared, token: &Token) -> CaptureResult {
     if width == 0 || height == 0 {
         return Err("Selected source has no visible area.");
     }
+    // Let the system scale to what a provider can read without resampling again.
+    let scale = (1568.0 / f64::from(width.max(height))).min(1.0);
     let config = SCStreamConfiguration::new()
-        .with_width(width)
-        .with_height(height)
+        .with_width((f64::from(width) * scale) as u32)
+        .with_height((f64::from(height) * scale) as u32)
         .with_queue_depth(3)
         .with_minimum_frame_interval(&CMTime::new(1, 10))
         .with_captures_audio(true)
@@ -96,9 +117,10 @@ pub fn run(picker: Picker, state: &Shared, token: &Token) -> CaptureResult {
         let _ = ended.try_send(());
     });
     let mut stream = SCStream::new_with_delegate(&selected.filter(), &config, delegate)
-        .map_err(|_| "Could not prepare macOS capture.")?;
+        .map_err(fail("Could not prepare macOS capture."))?;
     let video_session = state.clone();
     let video_token = token.clone();
+    let video_sink = sink.clone();
     stream
         .add_output_handler(
             move |sample: CMSampleBuffer, _| {
@@ -110,17 +132,29 @@ pub fn run(picker: Picker, state: &Shared, token: &Token) -> CaptureResult {
                         buffer.width() as i32,
                         buffer.height() as i32,
                     );
+                    if let Ok(pixels) = buffer.lock_read_only() {
+                        let (stride, height) = (pixels.bytes_per_row(), pixels.height());
+                        // The guard keeps the BGRA base address valid for stride × height bytes.
+                        let bgra = unsafe {
+                            std::slice::from_raw_parts(pixels.base_address(), stride * height)
+                        };
+                        video_sink.frame(bgra, stride, pixels.width(), height);
+                    }
                 }
             },
             SCStreamOutputType::Screen,
         )
-        .map_err(|_| "Could not attach screen capture.")?;
+        .map_err(fail("Could not attach screen capture."))?;
     let audio_session = state.clone();
     let audio_token = token.clone();
+    let heard = Arc::new(AtomicBool::new(false));
+    let audio_heard = heard.clone();
+    let audio_sink = sink.clone();
     stream
         .add_output_handler(
             move |sample: CMSampleBuffer, _| {
                 if let Ok(buffers) = sample.audio_buffer_list() {
+                    audio_heard.store(true, Ordering::Release);
                     let level = (&buffers)
                         .into_iter()
                         .map(|b| peak(b.data()))
@@ -130,26 +164,50 @@ pub fn run(picker: Picker, state: &Shared, token: &Token) -> CaptureResult {
                         sample.num_samples().max(0) as u32,
                         level,
                     );
+                    // One channel is requested, so the first buffer is the mono mix.
+                    if let Some(mono) = (&buffers).into_iter().next() {
+                        audio_sink.pcm(
+                            mono.data()
+                                .chunks_exact(4)
+                                .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+                                .collect(),
+                        );
+                    }
                 }
             },
             SCStreamOutputType::Audio,
         )
-        .map_err(|_| "Could not attach playback capture.")?;
+        .map_err(fail("Could not attach playback capture."))?;
     if token.cancelled() {
         return Ok(());
     }
-    stream
-        .start_capture()
-        .map_err(|_| "Capture could not start. Check macOS sharing permissions and try again.")?;
+    if let Err(e) = stream.start_capture() {
+        // A timed-out start can still land, and dropping the stream does not stop it.
+        let _ = stream.stop_capture();
+        return Err(fail(
+            "Capture could not start. Check macOS sharing permissions and try again.",
+        )(e));
+    }
     state.lock().unwrap().running(token);
+    let mut result = Ok(());
+    let mut quiet_ticks = 0;
     while !token.cancelled() {
         if !matches!(failure.recv_timeout(tick), Err(RecvTimeoutError::Timeout)) {
-            return Err("macOS sharing ended. Choose a source to restart.");
+            result = Err("macOS sharing ended. Choose a source to restart.");
+            break;
+        }
+        // macOS delivers no audio buffers while the source is silent.
+        quiet_ticks = if heard.swap(false, Ordering::AcqRel) {
+            0
+        } else {
+            quiet_ticks + 1
+        };
+        if quiet_ticks == 3 {
+            state.lock().unwrap().audio(token, 0, 0.0);
         }
     }
-    stream
-        .stop_capture()
-        .map_err(|_| "Could not stop macOS capture cleanly.")
+    let stopped = stream.stop_capture();
+    result.and(stopped.map_err(fail("Could not stop macOS capture cleanly.")))
 }
 
 #[cfg(test)]

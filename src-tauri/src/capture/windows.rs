@@ -1,4 +1,7 @@
-use crate::session::{CaptureResult, Shared, Token, run_inputs};
+use crate::{
+    media::Sink,
+    session::{CaptureResult, Shared, Token, run_inputs},
+};
 use std::{
     sync::{
         Arc,
@@ -16,8 +19,8 @@ use windows::{
     Foundation::TypedEventHandler,
     Graphics::{
         Capture::{
-            Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCapturePicker,
-            GraphicsCaptureSession,
+            Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem,
+            GraphicsCapturePicker, GraphicsCaptureSession,
         },
         DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
         SizeInt32,
@@ -25,13 +28,18 @@ use windows::{
     Win32::{
         Foundation::{HMODULE, HWND},
         Graphics::{
-            Direct3D::D3D_DRIVER_TYPE_HARDWARE,
-            Direct3D11::{D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION, D3D11CreateDevice},
+            Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP},
+            Direct3D11::{
+                D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_MAP_READ,
+                D3D11_MAPPED_SUBRESOURCE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC,
+                D3D11_USAGE_STAGING, D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext,
+                ID3D11Texture2D,
+            },
             Dxgi::IDXGIDevice,
         },
         System::WinRT::{
-            Direct3D11::CreateDirect3D11DeviceFromDXGIDevice, RO_INIT_MULTITHREADED, RoInitialize,
-            RoUninitialize,
+            Direct3D11::{CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess},
+            RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize,
         },
         UI::Shell::IInitializeWithWindow,
     },
@@ -39,7 +47,8 @@ use windows::{
 };
 use windows_future::{AsyncStatus, IAsyncOperation};
 
-type Selection = IAsyncOperation<GraphicsCaptureItem>;
+// The picker stays alive until its operation completes.
+type Selection = (GraphicsCapturePicker, IAsyncOperation<GraphicsCaptureItem>);
 
 // Called by a synchronous Tauri command on the window's UI thread.
 pub fn pick(window: &WebviewWindow) -> CaptureResult<Selection> {
@@ -56,12 +65,13 @@ pub fn pick(window: &WebviewWindow) -> CaptureResult<Selection> {
     // The handle belongs to this live WebviewWindow.
     unsafe { owner.Initialize(HWND(hwnd.0)) }
         .map_err(|_| "Could not attach the Windows picker.")?;
-    picker
+    let operation = picker
         .PickSingleItemAsync()
-        .map_err(|_| "Windows denied or could not start screen selection.")
+        .map_err(|_| "Windows denied or could not start screen selection.")?;
+    Ok((picker, operation))
 }
 
-pub fn run(picker: Selection, state: &Shared, token: &Token) -> CaptureResult {
+pub fn run(picker: Selection, state: &Shared, token: &Token, sink: &Arc<Sink>) -> CaptureResult {
     unsafe { RoInitialize(RO_INIT_MULTITHREADED) }
         .map_err(|_| "Windows capture initialization failed.")?;
     struct Apartment;
@@ -72,7 +82,7 @@ pub fn run(picker: Selection, state: &Shared, token: &Token) -> CaptureResult {
     }
     let _apartment = Apartment;
     // Release the picker operation before leaving the worker's COM apartment.
-    let picker = picker;
+    let (_picker, picker) = picker;
     let mut cancel_requested = false;
     let item = loop {
         match picker
@@ -103,11 +113,11 @@ pub fn run(picker: Selection, state: &Shared, token: &Token) -> CaptureResult {
         || Screen::open(item).map_err(|_| "Could not capture the selected source."),
         || Audio::open().map_err(|_| "Could not capture the default playback device."),
         |screen, audio| {
-            if let Some(size) = screen.sample()? {
+            if let Some(size) = screen.sample(sink)? {
                 state.lock().unwrap().frame(token, size.Width, size.Height);
             }
             let (frames, peak) = audio
-                .sample()
+                .sample(sink)
                 .map_err(|_| "Playback device was lost. Check the output device and restart.")?;
             state.lock().unwrap().audio(token, frames, peak);
             Ok(())
@@ -122,6 +132,8 @@ struct Screen {
     closed_event: i64,
     closed: Arc<AtomicBool>,
     device: IDirect3DDevice,
+    d3d: ID3D11Device,
+    context: ID3D11DeviceContext,
     pool: Direct3D11CaptureFramePool,
     session: GraphicsCaptureSession,
     size: SizeInt32,
@@ -129,20 +141,28 @@ struct Screen {
 impl Screen {
     fn open(item: GraphicsCaptureItem) -> WinResult<Self> {
         let mut d3d = None;
-        unsafe {
-            D3D11CreateDevice(
-                None,
-                D3D_DRIVER_TYPE_HARDWARE,
-                HMODULE::default(),
-                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                None,
-                D3D11_SDK_VERSION,
-                Some(&mut d3d),
-                None,
-                None,
-            )?;
+        // Virtual machines and remote sessions may only offer the software adapter.
+        for driver in [D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP] {
+            let created = unsafe {
+                D3D11CreateDevice(
+                    None,
+                    driver,
+                    HMODULE::default(),
+                    D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                    None,
+                    D3D11_SDK_VERSION,
+                    Some(&mut d3d),
+                    None,
+                    None,
+                )
+            };
+            if created.is_ok() && d3d.is_some() {
+                break;
+            }
         }
-        let dxgi: IDXGIDevice = d3d.ok_or_else(Error::empty)?.cast()?;
+        let d3d: ID3D11Device = d3d.ok_or_else(Error::empty)?;
+        let context = unsafe { d3d.GetImmediateContext()? };
+        let dxgi: IDXGIDevice = d3d.cast()?;
         let device: IDirect3DDevice =
             unsafe { CreateDirect3D11DeviceFromDXGIDevice(&dxgi)? }.cast()?;
         let size = item.Size()?;
@@ -159,6 +179,8 @@ impl Screen {
             closed_event,
             closed,
             device,
+            d3d,
+            context,
             pool,
             session,
             size,
@@ -167,7 +189,40 @@ impl Screen {
         Ok(screen)
     }
 
-    fn sample(&mut self) -> CaptureResult<Option<SizeInt32>> {
+    /// Copies the frame to CPU memory. A failed copy only costs this one screenshot.
+    fn read(&self, frame: &Direct3D11CaptureFrame, size: SizeInt32, sink: &Sink) -> WinResult<()> {
+        let access: IDirect3DDxgiInterfaceAccess = frame.Surface()?.cast()?;
+        let texture: ID3D11Texture2D = unsafe { access.GetInterface()? };
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        unsafe { texture.GetDesc(&mut desc) };
+        desc.Usage = D3D11_USAGE_STAGING;
+        desc.BindFlags = 0;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ.0 as u32;
+        desc.MiscFlags = 0;
+        let mut staging = None;
+        unsafe { self.d3d.CreateTexture2D(&desc, None, Some(&mut staging))? };
+        let staging = staging.ok_or_else(Error::empty)?;
+        // The texture can be larger than the content while a window is being resized.
+        let width = (size.Width as usize).min(desc.Width as usize);
+        let height = (size.Height as usize).min(desc.Height as usize);
+        unsafe {
+            self.context.CopyResource(&staging, &texture);
+            let mut map = D3D11_MAPPED_SUBRESOURCE::default();
+            self.context
+                .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut map))?;
+            let stride = map.RowPitch as usize;
+            // The mapping stays valid for RowPitch × texture height bytes until Unmap.
+            let bgra = std::slice::from_raw_parts(
+                map.pData as *const u8,
+                stride * (height - 1) + width * 4,
+            );
+            sink.frame(bgra, stride, width, height);
+            self.context.Unmap(&staging, 0);
+        }
+        Ok(())
+    }
+
+    fn sample(&mut self, sink: &Sink) -> CaptureResult<Option<SizeInt32>> {
         if self.closed.load(Ordering::Acquire) {
             return Err("Selected source closed. Choose a source to restart.");
         }
@@ -179,6 +234,9 @@ impl Screen {
         let size = frame
             .ContentSize()
             .map_err(|_| "Screen capture was interrupted.")?;
+        if size.Width > 0 && size.Height > 0 && sink.due() {
+            let _ = self.read(&frame, size, sink);
+        }
         frame
             .Close()
             .map_err(|_| "Screen capture was interrupted.")?;
@@ -217,7 +275,8 @@ impl Audio {
         let format = WaveFormat::new(32, 32, SampleType::Float, 48_000, 2, None);
         let mode = StreamMode::PollingShared {
             autoconvert: true,
-            buffer_duration_hns: 1_000_000,
+            // One second absorbs a slow screenshot on the shared polling loop.
+            buffer_duration_hns: 10_000_000,
         };
         client.initialize_client(&format, Direction::Capture, mode, None)?;
         let capture = client.get_audiocaptureclient()?;
@@ -231,7 +290,7 @@ impl Audio {
             last_packet: Instant::now(),
         })
     }
-    fn sample(&mut self) -> Result<(u32, f32), wasapi::WasapiError> {
+    fn sample(&mut self, sink: &Sink) -> Result<(u32, f32), wasapi::WasapiError> {
         let mut frames = 0;
         let mut peak = 0.0f32;
         // Bound work per tick even if the endpoint continuously produces packets.
@@ -240,9 +299,14 @@ impl Audio {
                 break;
             }
             let (n, _) = self.capture.read_from_device(&mut self.buffer)?;
-            for b in self.buffer[..n as usize * 8].chunks_exact(4) {
-                peak = peak.max(f32::from_le_bytes(b.try_into().unwrap()).abs());
+            let mut mono = Vec::with_capacity(n as usize);
+            for pair in self.buffer[..n as usize * 8].chunks_exact(8) {
+                let left = f32::from_le_bytes(pair[..4].try_into().unwrap());
+                let right = f32::from_le_bytes(pair[4..].try_into().unwrap());
+                peak = peak.max(left.abs()).max(right.abs());
+                mono.push((left + right) / 2.0);
             }
+            sink.pcm(mono);
             frames += n;
         }
         if frames != 0 {

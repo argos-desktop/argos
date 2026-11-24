@@ -12,6 +12,7 @@ jobs:
       - run: rustup update stable --no-self-update && rustup default stable
       - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings
       - run: npx --yes --package=@tauri-apps/cli@2.12.6 -- tauri build --bundles app -- --locked
       - run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/Argos.app Argos-macOS.zip
       - uses: actions/upload-artifact@v4
