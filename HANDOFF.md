@@ -1,6 +1,6 @@
 # Argos handoff
 
-Resume on `macos-capture`. Windows is the priority target and must work by Wednesday November 25, 6 PM EST. macOS is developed alongside when it costs Windows nothing. The app now runs the whole path: capture, on-device transcription, and streamed suggestions from Claude or Codex with a user-supplied key. See the [README](README.md) for behavior and the [design](docs/superpowers/specs/2026-11-18-argos-design.md) for decisions.
+Work on `main`, the only branch. Windows is the priority target and must work by Wednesday November 25, 6 PM EST. macOS is developed alongside when it costs Windows nothing. The app now runs the whole path: capture, on-device transcription, and streamed suggestions from Claude or Codex with a user-supplied key. See the [README](README.md) for behavior and the [design](docs/superpowers/specs/2026-11-18-argos-design.md) for decisions.
 
 ## What exists
 
@@ -19,7 +19,7 @@ Resume on `macos-capture`. Windows is the priority target and must work by Wedne
 
 ## Next
 
-1. Publish the repository and get the Windows workflow to produce the `windows-latest` release. The MSVC build of `transcribe-cpp` is untested. If it fails, upload the mingw cross-build instead.
+1. The repository is public at github.com/argos-desktop/argos. Get the Windows workflow to produce the `windows-latest` release. The MSVC build of `transcribe-cpp` is untested. Publish only files built by the workflow, because local builds embed the builder's file paths.
 2. Run the [Windows checks](README.md#try-the-windows-build) on real hardware and fix what they show. Record the OS build, CPU, playback device, and measured latency here.
 3. Run one live session per assistant. Confirm the default model names `claude-haiku-5-5` and `gpt-6.1-terra` are accepted. Override with `ARGOS_CLAUDE_MODEL` or `ARGOS_CODEX_MODEL` if not.
 4. Run the same checks on the Mac.

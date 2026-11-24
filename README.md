@@ -54,4 +54,4 @@ Windows executable cross-built from macOS with mingw-w64, run from the repositor
 cargo build --release --locked --target x86_64-pc-windows-gnu --manifest-path src-tauri/Cargo.toml
 ```
 
-See [HANDOFF.md](HANDOFF.md) for validation status and the next step.
+See [HANDOFF.md](HANDOFF.md) for validation status and the next step. Argos is released under the [MIT License](LICENSE).
