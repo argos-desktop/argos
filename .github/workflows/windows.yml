@@ -14,7 +14,7 @@ jobs:
       # build from targeting whatever processor the runner happens to have.
       # Link the C and C++ runtimes statically so the executable needs no redistributable.
       RUSTFLAGS: -C target-feature=+crt-static
-      TRANSCRIBE_CMAKE_ARGS: -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON
+      TRANSCRIBE_CMAKE_ARGS: -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON
     defaults:
       run:
         working-directory: src-tauri
