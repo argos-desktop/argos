@@ -1,17 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Argos</title><link rel="stylesheet" href="style.css"><script defer src="app.js"></script></head>
-<body><main>
+<body>
+<div id="privacy"><p id="privacy-status" role="status">Checking screen-share privacy…</p><button id="privacy-retry" hidden>Retry</button></div>
+<main hidden>
 <header><span class="brand"><svg aria-hidden="true" viewBox="0 0 40 24"><path d="M2 12Q20 -7 38 12Q20 31 2 12Z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="12" r="5" fill="currentColor"/></svg>Argos</span><span id="phase" role="status">Initializing</span></header>
 <form id="account">
 <label>Assistant <select id="provider"><option value="claude">Claude (Anthropic API key)</option><option value="codex">Codex (OpenAI API key)</option><option value="">Local capture only</option></select></label>
 <div id="keyrow"><label>API key <input id="key" type="password" autocomplete="off" spellcheck="false"></label><label class="check"><input id="remember" type="checkbox"> Remember in the system keychain</label><button id="save">Save key</button><button id="forget" type="button">Forget</button></div>
 <p id="funding"></p>
-<label id="aboutrow">About you (resume, role, languages). Kept on this computer and sent to the assistant with each request. <textarea id="about" rows="3" spellcheck="false"></textarea></label>
+<div id="aboutrow">
+<label for="about">Your background</label>
+<textarea id="about" rows="3" maxlength="20000" aria-describedby="abouthelp" placeholder="Paste your résumé, role, or preferred languages."></textarea>
+<label for="resume">Add résumé from PDF or text</label>
+<input id="resume" type="file" accept=".pdf,.txt,.md">
+<small id="abouthelp">Review the text before starting. Argos saves it on this device and sends it to the selected assistant with each request.</small>
+</div>
 </form>
 <section aria-label="Capture signals"><div><h2>Screen</h2><strong id="video">Waiting for selection</strong><small id="frames">0 frames</small></div>
 <div><h2>Playback audio</h2><meter id="level" aria-label="Playback peak level" min="0" max="1" value="0"></meter><small id="audio">0 audio frames</small></div></section>
 <section id="assist" aria-label="Suggestion"><div><h2 data-tauri-drag-region>Heard</h2><p id="heard"></p></div><div><h2>Suggestion <small id="latency"></small></h2><p id="suggestion" aria-live="polite"></p></div></section>
 <p id="message" role="alert"></p>
+<small id="sharing" role="status">Share just the coding window to keep Argos out of view.</small>
 <footer><button id="start" disabled>Start</button><button id="stop" disabled>Stop</button><button id="solve" disabled>Solve screen</button><button id="float" aria-pressed="false">Float on top</button></footer>
 </main></body></html>

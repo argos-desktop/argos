@@ -8,11 +8,14 @@ let pending = false;
 let revision = 0;
 let ready = false;
 let phase = 'idle';
+let importing = false;
 
 function controls() {
-  el('start').disabled = pending || phase !== 'idle' || !ready;
+  el('start').disabled = pending || importing || phase !== 'idle' || !ready;
   el('stop').disabled = pending || !['starting', 'running'].includes(phase);
-  el('provider').disabled = el('save').disabled = phase !== 'idle';
+  el('provider').disabled = el('save').disabled = pending || importing || phase !== 'idle';
+  el('resume').disabled = importing || pending || phase !== 'idle';
+  el('about').disabled = pending || phase !== 'idle';
   el('solve').disabled = phase !== 'running' || !el('provider').value;
   el('forget').disabled = phase !== 'idle' || !ready || !el('provider').value;
 }
@@ -106,16 +109,80 @@ el('start').addEventListener('click', () => {
   act('start', {provider: el('provider').value || null, about: el('about').value, events: events()});
 });
 el('stop').addEventListener('click', () => { notice = ''; act('stop'); });
-el('solve').addEventListener('click', () => invoke('ask'));
-el('float').addEventListener('click', () => {
-  const on = document.documentElement.classList.toggle('overlay');
-  el('float').setAttribute('aria-pressed', on);
-  el('float').textContent = on ? 'Exit float' : 'Float on top';
-  invoke('overlay', {on});
+el('solve').addEventListener('click', () => act('ask'));
+const main = document.querySelector('main');
+
+function hideUntilChecked() {
+  main.hidden = true;
+  el('privacy').hidden = false;
+  el('privacy-status').textContent = 'Checking screen-share privacy…';
+  el('privacy-retry').hidden = true;
+}
+
+async function checkSharing() {
+  hideUntilChecked();
+  try {
+    el('sharing').textContent = await invoke('sharing_hint');
+    el('privacy').hidden = true;
+    main.hidden = false;
+  } catch (error) {
+    el('privacy-status').textContent = typeof error === 'string'
+      ? error : 'Could not confirm screen-share privacy. Your Argos content is hidden.';
+    try { await invoke('stop'); } catch { /* The native bridge may be unavailable. */ }
+    el('privacy-retry').hidden = false;
+  }
+}
+
+el('privacy-retry').addEventListener('click', checkSharing);
+el('float').addEventListener('click', async () => {
+  const button = el('float');
+  const on = !document.documentElement.classList.contains('overlay');
+  button.disabled = true;
+  hideUntilChecked();
+  try {
+    await invoke('overlay', {on});
+    document.documentElement.classList.toggle('overlay', on);
+    button.setAttribute('aria-pressed', on);
+    button.textContent = on ? 'Exit float' : 'Float on top';
+  } catch {
+    actionError = 'Could not change the floating window.';
+  } finally {
+    await checkSharing();
+    button.disabled = false;
+  }
 });
 // Storage can be unavailable. The notes then last for this run only.
 try { el('about').value = localStorage.getItem('about') || ''; } catch {}
 el('about').addEventListener('input', () => { try { localStorage.setItem('about', el('about').value); } catch {} });
+el('resume').addEventListener('change', async () => {
+  const input = el('resume');
+  const file = input.files[0];
+  if (!file) return;
+  importing = true;
+  actionError = '';
+  controls();
+  try {
+    if (file.size > 5 * 1024 * 1024) throw 'Choose a résumé under 5 MB.';
+    let text;
+    if (/\.pdf$/i.test(file.name)) text = await invoke('resume_pdf', await file.arrayBuffer());
+    else if (/\.(txt|md)$/i.test(file.name)) text = await file.text();
+    else throw 'Choose a PDF or plain-text résumé.';
+    if (!text.trim()) throw 'The résumé has no text.';
+    const notes = el('about');
+    const combined = [notes.value.trimEnd(), text.trim()].filter(Boolean).join('\n\n');
+    if (combined.length > notes.maxLength) throw 'The combined notes exceed 20,000 characters. Paste a shorter excerpt.';
+    notes.value = combined;
+    notes.dispatchEvent(new Event('input'));
+  } catch (error) {
+    actionError = typeof error === 'string' ? error : 'Could not read the résumé. Paste its text instead.';
+  } finally {
+    input.value = '';
+    importing = false;
+    controls();
+    await refresh();
+  }
+});
+checkSharing();
 async function poll() { await refresh(); setTimeout(poll, 200); }
 account();
 poll();

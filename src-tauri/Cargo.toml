@@ -9,6 +9,7 @@ publish = false
 base64 = "0.23"
 earshot = "1.2"
 jpeg-encoder = "0.7.1"
+lopdf = { version = "0.42", default-features = false }
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 # The OS TLS stack keeps the Windows cross-build free of C dependencies.
 reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls"] }
@@ -19,13 +20,13 @@ tokio = { version = "1", features = ["time", "macros"] }
 transcribe-cpp = "0.4.2"
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
-tauri = { version = "2", features = ["custom-protocol"] }
+tauri = { version = "2", features = ["custom-protocol", "macos-private-api"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 screencapturekit = { version = "11.1.2", features = ["macos_14_0"] }
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.27"
-windows = { version = "0.62", features = ["Foundation", "Graphics_Capture", "Graphics_DirectX_Direct3D11", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_WinRT_Direct3D11", "Win32_UI_Shell"] }
+windows = { version = "0.62", features = ["Foundation", "Graphics_Capture", "Graphics_DirectX_Direct3D11", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_WinRT_Direct3D11", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 windows-future = "0.3"
 
 [build-dependencies]

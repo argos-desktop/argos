@@ -10,6 +10,8 @@ fn main() {
                 "status",
                 "ask",
                 "overlay",
+                "sharing_hint",
+                "resume_pdf",
                 "account",
                 "set_key",
                 "forget_key",

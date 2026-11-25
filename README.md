@@ -5,17 +5,28 @@ Argos is a desktop assistant in development for Windows and macOS. It watches a 
 ## How a session works
 
 1. Choose **Claude** (Anthropic API key) or **Codex** (OpenAI API key). Paste the key and select **Save key**. Argos checks the key with the provider before keeping it. Tick **Remember in the system keychain** to keep it across restarts. Otherwise it lasts until you quit.
-2. Select **Start** and choose a display or window in the system picker.
-3. Play or join a call. When the other side pauses for about half a second, **Heard** shows the transcript and **Suggestion** streams the reply with the time from end of speech to first text.
-4. Select **Stop** to end capture and cancel any pending request.
+2. Paste your résumé or add a PDF with selectable text, a TXT file, or a Markdown file under **Your background**. Review or edit the combined text before starting. Argos keeps those notes on this device and includes them in requests to your selected assistant. Clear the field to remove them from future sessions.
+3. Select **Start** and choose a display or window in the system picker.
+4. Play or join a call. When the other side pauses for about half a second, **Heard** shows the transcript and **Suggestion** streams the reply with the time from end of speech to first text.
+5. Select **Solve screen** for a coding question you can see without waiting for someone to speak. Argos uses the latest sampled screenshot and waits for the first image if needed. Coding answers include the approach, code, and complexity. Debugging and design questions get a direct explanation.
+6. Select **Float on top** to read the streamed answer over your editor on the same display. Drag the Heard heading to position the window.
+7. Select **Stop** to end capture and cancel any pending request.
 
-Speech is transcribed on your computer. The first assistant session downloads a 50 MB speech model from huggingface.co into the Argos data folder and verifies its checksum. Each spoken turn sends the transcript, recent turns, and one screenshot (at most 1568 pixels on the long edge) to the provider you chose. Nothing is written to disk and no other provider is contacted. **Local capture only** runs the meters without any network use.
+Speech is transcribed on your computer. The first assistant session downloads a 50 MB speech model from huggingface.co into the Argos data folder and verifies its checksum. Each spoken turn sends the transcript, recent turns, and one screenshot (at most 1568 pixels on the long edge) to the provider you chose. Session screenshots, transcripts, and suggestions stay in memory on your device. **Local capture only** runs the meters without any network use.
 
 A rejected key, exhausted credit, or spending limit stops the session and says why. Argos never switches to another key or provider on its own. Brief provider outages are retried up to three times per turn.
 
 Set `ARGOS_CLAUDE_MODEL` or `ARGOS_CODEX_MODEL` before launching to use a different model.
 
 Tell the people on a call that you are using an assistant where the law or courtesy requires it.
+
+## Screen sharing
+
+Argos requests capture exclusion for its entire window from launch, including setup and floating mode. On Windows 11, Argos keeps setup, notes, and suggestions hidden until Windows accepts capture exclusion for the main window. Entering or exiting floating mode repeats the check. If it fails, Argos keeps the content hidden, requests that capture stop, and offers Retry. Windows file pickers and other system dialogs are separate windows.
+
+To check your meeting app, share the **entire display** to a second device or participant. Put Argos over a line of text in an editor and switch Float on top on and off. The viewer should see the text underneath in both modes, with no Argos window or blank rectangle. Use sample content for this check. [Windows capture exclusion](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)
+
+On modern macOS, full-display sharing can show Argos. In the meeting app, share the individual editor window or browser tab and float Argos over it on the same monitor. This is separate from the source you select inside Argos. If the call and editor are in different apps, selecting a display inside Argos captures both the editor and call playback. [Apple window sharing](https://developer.apple.com/documentation/appkit/nswindow/sharingtype-swift.enum)
 
 ## Try the Windows build
 

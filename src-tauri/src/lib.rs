@@ -4,6 +4,7 @@ mod media;
 #[cfg(any(windows, target_os = "macos"))]
 mod pipeline;
 mod provider;
+mod resume;
 #[cfg(any(windows, target_os = "macos", test))]
 mod session;
 mod speech;
@@ -38,6 +39,46 @@ mod desktop {
     use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 
     const ABOUT_LIMIT: usize = 20_000;
+
+    #[tauri::command]
+    async fn resume_pdf(request: tauri::ipc::Request<'_>) -> Result<String, &'static str> {
+        let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+            return Err("Choose a PDF file.");
+        };
+        if bytes.len() > 5 * 1024 * 1024 {
+            return Err("Choose a résumé under 5 MB.");
+        }
+        let bytes = bytes.clone();
+        tauri::async_runtime::spawn_blocking(move || super::resume::pdf_text(&bytes))
+            .await
+            .map_err(|_| "Could not read this PDF. Paste the résumé text instead.")?
+    }
+
+    #[tauri::command]
+    fn sharing_hint(_window: WebviewWindow) -> Result<&'static str, &'static str> {
+        #[cfg(windows)]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetWindowDisplayAffinity, SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
+            };
+            let error = "Windows could not enable capture exclusion. Your Argos content is hidden.";
+            let hwnd = _window.hwnd().map_err(|_| error)?;
+            unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) }.map_err(|_| error)?;
+
+            // Windows only guarantees readback for layered windows under DWM.
+            let mut affinity = 0;
+            if unsafe { GetWindowDisplayAffinity(hwnd, &mut affinity) }.is_ok()
+                && affinity != WDA_EXCLUDEFROMCAPTURE.0
+            {
+                return Err(error);
+            }
+            Ok("Windows accepted capture exclusion. Check the shared display from a second device.")
+        }
+        #[cfg(target_os = "macos")]
+        {
+            Ok("On Mac, share just the coding window. Full-display sharing can include Argos.")
+        }
+    }
 
     #[derive(Default)]
     struct App {
@@ -215,9 +256,14 @@ mod desktop {
 
     /// Floats the window above other apps without a frame, or restores it.
     #[tauri::command]
-    fn overlay(window: WebviewWindow, on: bool) {
-        let _ = window.set_decorations(!on);
-        let _ = window.set_always_on_top(on);
+    fn overlay(window: WebviewWindow, on: bool) -> Result<(), &'static str> {
+        let error = "Could not change the floating window.";
+        window.set_always_on_top(on).map_err(|_| error)?;
+        if window.set_decorations(!on).is_err() {
+            let _ = window.set_always_on_top(!on);
+            return Err(error);
+        }
+        Ok(())
     }
 
     #[tauri::command]
@@ -236,7 +282,16 @@ mod desktop {
                 ..App::default()
             })
             .invoke_handler(tauri::generate_handler![
-                start, stop, status, ask, overlay, account, set_key, forget_key
+                start,
+                stop,
+                status,
+                ask,
+                overlay,
+                sharing_hint,
+                resume_pdf,
+                account,
+                set_key,
+                forget_key
             ])
             .on_window_event(|window, event| {
                 let app = window.state::<App>();

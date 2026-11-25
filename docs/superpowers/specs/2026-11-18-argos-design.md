@@ -8,6 +8,10 @@ Use Tauri 2 with a small bundled frontend and Rust session management. Electron 
 
 Start on Windows with one selected display and system playback audio using Windows Graphics Capture and WASAPI loopback. On macOS 14 or later, use ScreenCaptureKit’s system picker and a single stream for screen and playback audio. When Linux development begins, start with the desktop screencast portal and PipeWire on Wayland, selecting a playback monitor for audio. Treat X11 and individual Linux desktop environments as separate validation targets. Record tested OS versions and desktops before advertising support. Prefer maintained capture libraries when they preserve source selection, permission errors, and reliable shutdown.
 
+Use the same window for setup and the translucent, always-on-top answer view. Request OS capture exclusion at creation so it also covers setup and transitions. On Windows, withhold the setup form and answers until the top-level window accepts capture exclusion. Check readback where supported and reapply exclusion after floating-mode transitions. If Windows rejects the request, keep the content hidden and request a session stop. Modern macOS capture can include a protected window when sharing a whole display, so guide users to share their editor window or browser tab in the meeting app.
+
+A spoken turn or an explicit Solve screen request triggers a suggestion. A screen request requires a captured image. For personalization, extract résumé text locally and let the user edit the notes before Start. Only the reviewed text goes to the selected provider as background with each turn.
+
 ## Account options
 
 Offer an Anthropic or OpenAI API key for the corresponding assistant. Show which account or key funds the session before Start. If a subscription expires, reaches a limit, or loses authorization, pause and let the user choose whether to use a paid key. Never switch billing sources automatically.
