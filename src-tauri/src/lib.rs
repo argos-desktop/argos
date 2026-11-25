@@ -29,13 +29,15 @@ mod desktop {
     use serde::Serialize;
     use std::{
         sync::{
-            Mutex,
+            Arc, Mutex,
             atomic::{AtomicBool, Ordering},
         },
         thread::{self, JoinHandle},
         time::{Duration, Instant},
     };
     use tauri::{Manager, State, WebviewWindow, ipc::Channel};
+
+    const ABOUT_LIMIT: usize = 20_000;
 
     #[derive(Default)]
     struct App {
@@ -44,6 +46,7 @@ mod desktop {
         session: Shared,
         worker: Mutex<Option<JoinHandle<()>>>,
         closing: AtomicBool,
+        ask: Arc<AtomicBool>,
     }
 
     #[derive(Serialize)]
@@ -113,6 +116,7 @@ mod desktop {
         window: WebviewWindow,
         app: State<'_, App>,
         provider: Option<String>,
+        about: String,
         events: Channel<Event>,
     ) -> Result<(), &'static str> {
         if app.closing.load(Ordering::Acquire) {
@@ -125,6 +129,15 @@ mod desktop {
                 key: app.keys.get(account).ok_or("Add an API key first.")?.0,
                 model,
                 base_url,
+                ask: app.ask.clone(),
+                instructions: match about.trim() {
+                    "" => pipeline::INSTRUCTIONS.into(),
+                    about => format!(
+                        "{}\n\nThe user's own notes about themselves. Tailor answers to them:\n{}",
+                        pipeline::INSTRUCTIONS,
+                        about.chars().take(ABOUT_LIMIT).collect::<String>()
+                    ),
+                },
             }),
             None => None,
         };
@@ -146,6 +159,7 @@ mod desktop {
         if let Some(assistant) = assistant {
             let (sink, state) = (sink.clone(), session.clone());
             let (running, failed) = (token.clone(), token.clone());
+            app.ask.store(false, Ordering::Release);
             let pipeline = thread::Builder::new()
                 .name("argos-pipeline".into())
                 .spawn(move || {
@@ -195,6 +209,18 @@ mod desktop {
     }
 
     #[tauri::command]
+    fn ask(app: State<'_, App>) {
+        app.ask.store(true, Ordering::Release);
+    }
+
+    /// Floats the window above other apps without a frame, or restores it.
+    #[tauri::command]
+    fn overlay(window: WebviewWindow, on: bool) {
+        let _ = window.set_decorations(!on);
+        let _ = window.set_always_on_top(on);
+    }
+
+    #[tauri::command]
     fn status(app: State<'_, App>) -> Status {
         app.session.lock().unwrap().status.clone()
     }
@@ -210,7 +236,7 @@ mod desktop {
                 ..App::default()
             })
             .invoke_handler(tauri::generate_handler![
-                start, stop, status, account, set_key, forget_key
+                start, stop, status, ask, overlay, account, set_key, forget_key
             ])
             .on_window_event(|window, event| {
                 let app = window.state::<App>();

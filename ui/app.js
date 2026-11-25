@@ -13,6 +13,7 @@ function controls() {
   el('start').disabled = pending || phase !== 'idle' || !ready;
   el('stop').disabled = pending || !['starting', 'running'].includes(phase);
   el('provider').disabled = el('save').disabled = phase !== 'idle';
+  el('solve').disabled = phase !== 'running' || !el('provider').value;
   el('forget').disabled = phase !== 'idle' || !ready || !el('provider').value;
 }
 async function refresh() {
@@ -49,7 +50,7 @@ async function act(command, args) {
 }
 async function account() {
   const provider = el('provider').value;
-  el('keyrow').hidden = !provider;
+  el('keyrow').hidden = el('aboutrow').hidden = el('solve').hidden = !provider;
   el('assist').hidden = !provider;
   if (!provider) {
     ready = true;
@@ -62,6 +63,7 @@ async function account() {
     const a = await invoke('account', {provider});
     if (provider !== el('provider').value) return;
     ready = a.saved;
+    el('key').placeholder = a.saved ? 'Key saved. Enter a new one to replace it.' : '';
     el('funding').textContent = a.saved
       ? `Billed to your ${vendors[provider]} API key (${a.remembered ? 'saved in the system keychain' : 'this session only'}). ` +
         `Speech is transcribed on this computer with a 50 MB model downloaded once from huggingface.co. The transcript and one screenshot per spoken turn are sent to ${vendors[provider]}.`
@@ -79,7 +81,7 @@ function events() {
     else if (e.type === 'heard') { if (e.turn < turn) return; turn = e.turn; el('heard').textContent = e.text; el('suggestion').textContent = ''; el('latency').textContent = ''; }
     else if (e.type === 'delta' && e.turn === turn) {
       el('suggestion').textContent += e.text;
-      if (e.ms != null) el('latency').textContent = (e.ms / 1000).toFixed(1) + ' s after speech ended';
+      if (e.ms != null) el('latency').textContent = (e.ms / 1000).toFixed(1) + ' s';
     }
     else if (e.type === 'notice') notice = e.text;
   };
@@ -101,9 +103,19 @@ el('forget').addEventListener('click', async () => { await act('forget_key', {pr
 el('start').addEventListener('click', () => {
   notice = '';
   el('heard').textContent = el('suggestion').textContent = el('latency').textContent = '';
-  act('start', {provider: el('provider').value || null, events: events()});
+  act('start', {provider: el('provider').value || null, about: el('about').value, events: events()});
 });
 el('stop').addEventListener('click', () => { notice = ''; act('stop'); });
+el('solve').addEventListener('click', () => invoke('ask'));
+el('float').addEventListener('click', () => {
+  const on = document.documentElement.classList.toggle('overlay');
+  el('float').setAttribute('aria-pressed', on);
+  el('float').textContent = on ? 'Exit float' : 'Float on top';
+  invoke('overlay', {on});
+});
+// Storage can be unavailable. The notes then last for this run only.
+try { el('about').value = localStorage.getItem('about') || ''; } catch {}
+el('about').addEventListener('input', () => { try { localStorage.setItem('about', el('about').value); } catch {} });
 async function poll() { await refresh(); setTimeout(poll, 200); }
 account();
 poll();

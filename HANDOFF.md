@@ -8,20 +8,20 @@ Work on `main`, the only branch. Windows is the priority target and must work by
 - `speech/` resamples, detects speech, and transcribes each turn with Moonshine Streaming Tiny through `transcribe-cpp`. The model downloads on first use with a pinned checksum.
 - `provider/` streams from the Anthropic Messages API and the OpenAI Responses API and sorts errors into permanent and transient.
 - `pipeline.rs` joins them, drops a suggestion when a newer turn arrives, retries transient failures three times, and ends the session on a permanent failure.
+- Solve screen answers what is on screen without waiting for speech. About you is stored in the window's local storage and appended to the instructions. Float on top makes the window frameless, translucent, and always on top. It stays visible to screen sharing by decision.
 - `keys.rs` keeps keys in memory and optionally in the OS credential store.
 
-## Checks run on November 24
+## Checks run
 
-- **macOS, Apple silicon, macOS 27.0.1.** 38 tests pass and one measurement test is ignored. Clippy with warnings denied is clean. Measured end of speech to transcript at 550 to 690 ms on synthetic speech.
-- **Windows x64.** Clippy is clean for `x86_64-pc-windows-gnu` and the release executable cross-links from macOS. Nothing has run on Windows. Frame readback, the software-adapter fallback, the credential store, and speech speed are unverified there.
-- **Earlier Mac capture session, before today's changes.** Start opened Apple's picker, Escape returned to Idle, restart worked, both counters rose during capture, and Stop reset them. A meter response to a known tone was never confirmed. The prepared QuickTime clip `Argos Capture Test.mp4` alternates one second of tone with one second of silence.
-- **Not run anywhere.** A live session with a real key. The model download through the app. Either GitHub workflow. The new picker exclusion that should explain the earlier Mac session with video and no audio, which looked like Argos capturing its own window.
+- **November 25, Windows PC, user-run on the CI build.** Capture passes for displays and windows. A window delivers frames only when its content changes, so its count is lower. Key save, refusal of a bad key, remember, and forget pass. The `windows-latest` executable imports only DLLs that ship with Windows.
+- **November 25, after adding the coding prompt, Solve screen, About you, and Float on top.** macOS: 38 tests pass, clippy clean. Windows: clippy clean for `x86_64-pc-windows-gnu`. None of the four additions has been run in the app. The transparent frameless window is untested on Windows.
+- **November 24, macOS.** End of speech to transcript measured at 550 to 690 ms on synthetic speech.
+- **Not run anywhere.** A full live session result has not been reported for either assistant. macOS CI has never been assigned a runner.
 
 ## Next
 
-1. The repository is public at github.com/argos-desktop/argos. Get the Windows workflow to produce the `windows-latest` release. The MSVC build of `transcribe-cpp` is untested. Publish only files built by the workflow, because local builds embed the builder's file paths.
-2. Run the [Windows checks](README.md#try-the-windows-build) on real hardware and fix what they show. Record the OS build, CPU, playback device, and measured latency here.
-3. Run one live session per assistant. Confirm the default model names `claude-haiku-5-5` and `gpt-6.1-terra` are accepted. Override with `ARGOS_CLAUDE_MODEL` or `ARGOS_CODEX_MODEL` if not.
-4. Run the same checks on the Mac.
+1. On the Windows PC: Float on top (transparency, dragging by the Heard heading, resizing), Solve screen on a coding problem, About you, then one live call per assistant. Record latency here.
+2. Confirm the model names `claude-haiku-5-5` and `gpt-6.1-terra` are accepted. Override with `ARGOS_CLAUDE_MODEL` or `ARGOS_CODEX_MODEL` if answers to coding problems are too weak.
+3. Publish only files built by the workflow, because local builds embed the builder's file paths.
 
 Known limits: a Windows default-device change applies on the next Start. On macOS a shared window carries only its own app's audio. A CPU without AVX2 cannot run the Windows build. Sign in with ChatGPT, code signing, an updater, and Linux are not started.

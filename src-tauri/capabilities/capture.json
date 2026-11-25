@@ -1,1 +1,1 @@
-{"identifier":"capture","description":"Local capture controls for the main window","windows":["main"],"permissions":["allow-start","allow-stop","allow-status","allow-account","allow-set-key","allow-forget-key"]}
+{"identifier":"capture","description":"Local capture controls for the main window","windows":["main"],"permissions":["allow-start","allow-stop","allow-status","allow-ask","allow-overlay","core:window:allow-start-dragging","allow-account","allow-set-key","allow-forget-key"]}

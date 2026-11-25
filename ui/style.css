@@ -10,3 +10,7 @@ button{font:inherit;font-weight:600;padding:10px 20px;border:1px solid #8296a3;b
 form{padding:18px 0 0}label{display:block;color:#bdccd4;font-size:14px;margin-bottom:10px}select,input[type=password]{font:inherit;display:block;width:100%;margin-top:6px;padding:8px 10px;border:1px solid #5d7180;border-radius:6px;background:#0b141c;color:#eff7f6}
 #keyrow{display:grid;grid-template-columns:1fr auto auto;gap:0 12px;align-items:end}#keyrow>label:first-child{grid-column:1/-1}.check{display:flex;align-items:center;gap:8px}#keyrow button{margin-bottom:10px;padding:6px 14px}[hidden]{display:none!important}
 #funding{font-size:14px;margin:6px 0 16px}#assist{border-top:0}#assist p{color:#eff7f6;min-height:3em;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}h2 small{display:inline;margin-left:8px}
+textarea{font:inherit;display:block;width:100%;margin-top:6px;padding:8px 10px;border:1px solid #5d7180;border-radius:6px;background:#0b141c;color:#eff7f6;resize:vertical}footer{flex-wrap:wrap}#float{margin-left:auto}
+.overlay{background:rgba(11,20,28,.72)}.overlay main{padding:10px 14px;height:100vh;display:flex;flex-direction:column}.overlay header,.overlay form,.overlay section:not(#assist){display:none}
+.overlay #assist{grid-template-columns:1fr;gap:8px;border:0;padding:0;flex:1;min-height:0;overflow:auto}.overlay #assist h2{margin:0 0 4px;cursor:move}.overlay #suggestion{font:14px/1.45 Consolas,Menlo,monospace}.overlay #heard{min-height:0;color:#bdccd4;font-size:13px}
+.overlay #message{margin:4px 0;min-height:0}.overlay button{padding:4px 12px;font-size:13px}

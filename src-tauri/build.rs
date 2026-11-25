@@ -8,6 +8,8 @@ fn main() {
                 "start",
                 "stop",
                 "status",
+                "ask",
+                "overlay",
                 "account",
                 "set_key",
                 "forget_key",

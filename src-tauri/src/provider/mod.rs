@@ -13,7 +13,7 @@ pub const CODEX_URL: &str = "https://api.openai.com";
 pub const CODEX_MODEL: &str = "gpt-6.1-terra";
 
 const ANTHROPIC_VERSION: &str = "2026-10-21";
-const MAX_TOKENS: u32 = 1024;
+const MAX_TOKENS: u32 = 2048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Provider {
